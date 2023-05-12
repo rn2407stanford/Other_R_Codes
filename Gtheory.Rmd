@@ -1,0 +1,169 @@
+---
+title: "Gtheory"
+output: html_document
+date: "2023-05-07"
+---
+
+
+
+# Develop mean scores
+set.seed(4)
+h<-as.data.frame(rpois(100, 16))
+colnames(h)<-c("h")
+h<-as.data.frame(h[h[,1] <= 18,])
+colnames(h)<-c("h")
+
+
+```{r}
+set.seed(1)
+d<-c(0, 1, 2, 3)
+good<-c(0, 0.01, 0.3, 0.69)
+normal<-c(0.05, 0.15, 0.6, 0.2)
+bad<-c(0.1, 0.6, 0.2, 0.1)
+
+# good <- c(0.25, 0.25, 0.25, 0.25)
+# normal<- c(0.25, 0.25, 0.25, 0.25)
+# bad<-  c(0.25, 0.25, 0.25, 0.25)
+
+scores<-function(d, n, prob){
+  m<-as.data.frame(0)
+  for (i in 1:n){
+    level<-sample(d, 6, replace=TRUE, prob=prob)
+    m[i,1]<-level[1]
+    m[i,2]<-level[2]
+    m[i,3]<-level[3]
+    m[i,4]<-level[4]
+    m[i,5]<-level[5]
+    m[i,6]<-level[6]
+  }
+  colnames(m)<-c("thrust", "relev", "bias", "perpec", "conseq", "commun")
+  # m$total<-rowSums(m)
+  return(m)
+}
+
+l<-scores(d, 20, bad)
+
+m<-scores(d, 60, normal)
+n<-scores(d, 20, good)
+df<-rbind(l, m, n)
+df$Person<-1:length(df$thrust)
+
+```
+
+we have two facets raters and items
+
+```{r}
+library(reshape2)
+dta<-melt(df, id = 'Person')
+colnames(dta)<-c('person', 'item', 'score')
+dta$item<- as.character(dta$item)
+dta$item[dta$item == 'thrust'] <- 1
+dta$item[dta$item == 'bias'] <- 2
+dta$item[dta$item == 'commun'] <- 3
+dta$item[dta$item == 'conseq'] <- 4
+dta$item[dta$item == 'perpec'] <- 5
+dta$item[dta$item == 'relev'] <- 6
+dta$item<- as.numeric(dta$item)
+dta$person<-as.numeric(dta$person)
+```
+
+
+
+```{r}
+library(gtheory)
+summary(aov(score~person+item, data = dta))
+formula1 <- score ~ (1|person)+(1|item)
+g1 <- gstudy(data = dta, formula1)
+g1$components
+
+```
+
+
+
+```{r}
+d1 <- dstudy(g1,colname.objects="person", colname.scores="score", data= dta)
+d1$components
+d1$var.universe
+d1$var.error.rel
+d1$generalizability
+d1$dependability
+```
+
+```{r}
+n_i <- c(1,2,5,10)
+#relative error variance
+rel_err_var <- g1$components[3,2]/n_i
+#absolute error variance
+abs_err_var <- g1$components[2,2]/n_i+g1$components[3,2]/n_i
+#calculate generalizability coefficient
+gen_coef <- g1$components[1,2]/(g1$components[1,2] + rel_err_var)
+#calculate dependability coefficient
+dep_coef <- g1$components[1,2]/(g1$components[1,2] + abs_err_var)
+round(rel_err_var,2)
+round(abs_err_var,2)
+round(gen_coef,2)
+round(dep_coef,2) 
+```
+
+```{r}
+n_prime <- 1:50
+#relative error variance
+rel_err_var <-g1$components[3,2]/n_prime
+#absolute error variance
+abs_err_var <- g1$components[2,2]/n_prime + g1$components[3,2]/n_prime
+#calculate generalizability coefficient
+gen_coef <- g1$components[1,2]/(g1$components[1,2] + rel_err_var)
+#calculate dependability coefficient
+dep_coef <- g1$components[1,2]/(g1$components[1,2] + abs_err_var)
+
+# Next, we load to ggplot2 package and use the ggplot() function to construct the plot; as in Brennan(2001), the symbol 𝜌 represents the generalizability coefficient, 𝐸𝜌ොଶ.
+
+library(ggplot2)
+
+label1 <- "rho"
+label2 <- "phi"
+ggplot(data.frame(x=n_prime,y=gen_coef, label=label1)) + geom_text(aes(n_prime,gen_coef,label=label1), parse=TRUE) + geom_text(aes(n_prime,dep_coef,label=label2), parse=TRUE) + ggtitle("Plot") + xlab("D Study Sample Sizes") + ylab("Cofficient")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

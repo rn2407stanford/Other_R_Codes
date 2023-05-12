@@ -1,0 +1,193 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-05-06"
+---
+
+```{r}
+setwd("C:/Users/Roza/Desktop")
+A <- read.delim("glass.dat.txt", sep="")
+B <- read.delim("motor.dat.txt", sep="")
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(locfit)
+
+colnames(A)[4]<-'x'
+colnames(A)[1]<-'y'
+```
+
+# a.1
+
+ Apply your local linear regression estimator to the dataset (A) with bandwidth h ∈ {0.02, 0.15, 1}. Plot the fitted ˆr(x) as a function of x. In the same figure, also plot the data points. (In the figure, there should be three curves, a scatter graph of the data points, a proper legend and title.) Briefly discuss which one of these fitted curves intuitively is better and why.
+
+
+```{r}
+local_regression<-function(A, h){
+  A$yhat<-0
+  n<-length(A$x)
+  for (j in 1:n){
+    w=dnorm(A$x[j], A$x, h )
+    A$u<- (A$x-A$x[j])
+    sum1<-sum(w*((A$u)^2))
+    sum2<-sum(w*A$u)
+    b<-w*(sum1-A$u*sum2)
+    sum_b<-sum(b)
+    A$l<-b/sum_b
+    A$yhat[j] <- sum(A$l*A$y)
+    }
+  return(A)
+  }
+
+loc_0.02<-local_regression(A, 0.02)
+loc_0.15<-local_regression(A, 0.15)
+loc_1<-local_regression(A, 1)
+
+ggplot()+ geom_line(data=loc_0.02, aes(x=x, y=yhat)) + geom_line(data=loc_0.15, aes(x=x, y=yhat), color='orange') + geom_line(data=loc_1, aes(x=x, y=yhat), color='blue') + geom_line(data=loc_0.02, aes(x=x, y=yhat)) +geom_point(data=loc_0.02, aes(x=x, y=y), color='darkgreen', size=1)+theme_classic() +  ggtitle("Local Linear Regressions with Bandwidths: 1 (Blue); 0.15  (Orange) and 0.02 (Black)") + xlab("x Values") + ylab("Predicted and True Y Values")
+
+
+```
+
+The bandwith =0.15 is the best in my opinion. The curve of h=0.02 is overfitting the data (so to the noise) and has a high variance, the one blue with h=1 is underfiting and has a high bias and is not enough capturing the data. 
+
+2) Download the dataset (C) from http://web.stanford.edu/class/stats205/a2data.csv. The dataset was generated synthetically by adding noises to the ground-truth r(x) = x. The covariate has column name ‘x’ and the response variable has column name ’y’. Apply your local linear regression estimator to it with bandwidth h = 0.46, and apply the kernel estimator with Gaussian kernel and bandwidth h = 0.05 to the dataset (C) as well. Plot the fitted ˆr(x) as a function of x for x ∈ [0, 1]. In the same figure, also plot the data points and the ground-truth function r(x) = x for references. (In the figure, there should be three curves, a scatter graph of the data points, and a proper legend and title.) Briefly discuss which one of these fitted curves is intuitively better and why. Note: the bandwidths we provided are the best based on the cross-validation.
+
+# a.2
+
+```{r}
+C<-read.csv("a2data.csv")
+
+h = 0.46
+loc_C<-local_regression(C, h)
+ 
+kernel_gaussian<-function(A, h){
+  A$ystar<-0
+  n<-length(A$x)
+  for (i in 1:n){
+    w=dnorm(A$x[i], A$x, h )
+    A$ystar[i] <- sum(A$y * w) / sum(w)
+    }
+  return(A)
+}
+h= 0.05
+gaussian_C <- kernel_gaussian(C, h)
+
+ggplot() + geom_point(data=C, aes(x, y), size=1) + geom_line(data=loc_C, aes(x=x, y=yhat), color="red") + geom_line(data=gaussian_C, aes(x=x, y=ystar), color="blue") + geom_line(data=loc_C, aes(x=x, y=x), color="yellow") + theme_classic() + ggtitle("Local Linear Regression, h=0.46 (Red), Guassian Kernel Estimate, h=0.05 (Blue) \n and True Function (Yellow)") + xlab("x Values") + ylab("Predicted and True Y Values")
+
+```
+We can see that local linear regression is a better estimate than the Gaussian Kernel Method here. The red line almost overlaps true yellow line. This makes sense as given the best bandwidths for both, the local linear regression uses linear fit (locally linear) and is not based on weighted averaging for a given bandwidth as in the case of Gaussian Kernel (locally constant). So, in some places the Gaussian Kernel over or underestimate the true value.
+
+# b.1
+
+(1 point) Compute the Rˆ h for linear local regression with dataset (B) for h ∈ {k · 10−2: 150 ≤ k ≤ 200, k is integer}. Plot the value of Rˆ h as a function of h. You are supposed to observe a unimodal function. Briefly discuss why the theory in the class explains the shape.
+
+```{r}
+k=as.data.frame(150:200)
+k$h<-k[,1]/100
+m<-length(k$h)
+k$R<-0
+colnames(B)[1]<-'x'
+colnames(B)[2]<-'y'
+h=1.5
+
+risk<-function(B, h){
+  B<-local_regression(B, h)
+  B$R<-0
+  n<-length(B$x)
+  for (j in 1:n){
+    w=dnorm(B$x[j], B$x, h )
+    B$u<- (B$x-B$x[j])
+    sum1<-sum(w*((B$u)^2))
+    sum2<-sum(w*B$u)
+    b<-w*(sum1-B$u*sum2)
+    sum_b<-sum(b)
+    B$l<-b/sum_b
+    B$R[j]<-(B$y[j]-B$yhat[j])/(1-B$l[j])
+  }
+  Sum<-mean((B$R)^2)
+  return(Sum)
+}
+
+R<-risk(B, h)
+R 
+
+
+for (i in 1:m){
+  k$R[i]<-risk(B,k$h[i])
+}
+
+plot(k$h, k$R) # ROZA ask why? bias variance?
+
+ggplot()+geom_point(data=k, aes(x=h, y=R)) + theme_classic() + ggtitle("Rˆh Values as a Function of h")
+```
+
+# b.2
+
+(1 point) Compute and report the h that achieves the smallest cross-validation score (among the set of choices given above.). Plot the corresponding fitted curve ˆr(x) for the optimal h, along with the data points.
+
+I think this is where the bias and variance meet and the area where it is the lowest is the area where the optiomal h is found.
+
+```{r}
+index<-which.min(k$R)
+h<-k$h[index]
+loc_B<-local_regression(B, h)
+
+ggplot() + geom_point(data=loc_B, aes(x=x, y=y)) + geom_line(data=loc_B, aes(x=x, y=yhat), color="red") + theme_classic() + ggtitle("Local Linear Regression with optimal h (Red)") + xlab("x Values") + ylab("Predicted and True Y Values")
+# ROZA. Is this correct
+h
+```
+
+# c.1
+
+Note: but there may be datapoints (x, y) with identical x. To use the packages, you need to sort by values of x and somehow remove the duplicates. For simplicity, you should merge the data points with the same x values into a single data point, by averaging the corresponding response variables. (E.g., if xi = xj = z, then you should merge them into a new data point (x, y) = (z, (xi+xj)/2 ).)
+1. (1.5 point) Apply smoothing splines on the dataset (A) with different smoothing parameters. Users of smooth.spline in R should use spar = 0.01, 0.2, 0.5, 1.1. Please plot the corresponding fitted ˆr(x). As usual, also plot the scatter graph of the data points in the same figure. (You are supposed to see a bias-variance trade-off as you vary the choice of the smoothing parameters s or spar.)
+
+```{r}
+df<-select(A, x, y)
+library(stats)
+library(plyr)
+df<-ddply(df,"x",numcolwise(mean))
+# 0.01, 0.2, 0.5, 1.1
+spline1=smooth.spline(x=df$x, y = df$y, spar = 0.01)
+spline2=smooth.spline(x=df$x, y = df$y, spar = 0.2)
+spline3=smooth.spline(x=df$x, y = df$y, spar = 0.5)
+spline4=smooth.spline(x=df$x, y = df$y, spar = 1.1)
+
+df$spline1<-0
+df$spline2<-0
+df$spline3<-0
+df$spline4<-0
+
+df$spline1= spline1$y
+df$spline2= spline2$y
+df$spline3= spline3$y
+df$spline4= spline4$y
+
+ggplot() + geom_point(data=df, aes(x=x, y=y), size=1) + geom_line(data=df, aes(x=x, y=spline1), color="red") + geom_line(data=df, aes(x=x, y=spline2), color="green") + geom_line(data=df, aes(x=x, y=spline3), color="blue") + geom_line(data=df, aes(x=x, y=spline4)) +theme_classic() + ggtitle("Smoothing Splines with h=0.01 (Red), h=0.2 (Green), h=0.5 (Blue), and h=1.1(Black) ") + xlab("x Values") + ylab("Predicted and True Y Values")
+
+```
+# c.2
+
+```{r}
+D<-read.csv("c2data.csv")
+D1<-D[D$x<1 & D$x>=0, ]
+D2<-D[D$x>=1 & D$x<=2, ]
+D1$r_x<-cos(12*pi*D1$x)
+D2$r_x<-D2$x
+D<-rbind(D1, D2)
+spline=smooth.spline(x=D$x, y = D$y, spar = 0.35)
+D$spline<-spline$y
+h = 0.015
+loc_D<-local_regression(D, h)
+ggplot() + geom_line(data=loc_D, aes(x=x, y=yhat), colour="green") + geom_line(data=D, aes(x=x, y=spline), colour="red") + geom_point(data=D, aes(x=x, y=y), colour="blue", size=1) + geom_line(data=loc_D, aes(x=x, y=r_x)) + theme_classic() + ggtitle("Local Linear Regression (Green), Spline(Red), True Function (Blue)") + xlab("x Values") + ylab("Predicted and True Y Values")
+
+```
+
+
+
+
+
+
+
+
+

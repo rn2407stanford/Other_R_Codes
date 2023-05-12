@@ -1,0 +1,548 @@
+---
+title: "HW1"
+output: html_document
+date: "2023-05-12"
+---
+
+
+```{r}
+setwd("C:/Users/Roza/Desktop")
+A <- read.delim("glass.dat.txt", sep="")
+B <- read.delim("motor.dat.txt", sep="")
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+```
+
+# a.1
+
+Regressogram (1 point).
+– For dataset (A): use [a, b] with a = 0.29 and b = 3.50 as the boundary of the data, and use bin width h = (b − a)/m = 0.321 where m = 10 is the number of bins. (In other words, you should divide [a, b] into m = 10 bins with equal sizes.)
+
+```{r}
+m=10
+a=0.29
+b=3.50
+h=0321
+h = (b − a)/m
+colnames(A)[4]<-'x'
+colnames(A)[1]<-'y'
+
+mean_range<-function(A, h, a, b){
+  bin_value <- ceiling((A$x-a) / h)
+  bin_value<-replace(bin_value, bin_value==0, 1)
+  regressogram_data <- cbind(A, bin_value)
+  bin2<-aggregate(regressogram_data$y, list(regressogram_data$bin_value), FUN=mean)
+  bin1<-aggregate(regressogram_data$x, list(regressogram_data$bin_value), FUN=mean)
+  l<-as.data.frame(0:m)
+  l<-a+ l[1]*h
+  bin<-cbind(bin1, bin2$x, as.data.frame(l[1:m,]), as.data.frame(l[2:(m+1),]))
+  colnames(bin) <- c("Index", "xmean", "ymean", "min", "max")
+  return(bin)
+}
+
+A_bin<-mean_range(A, h, a, b)
+
+regressogram<-function(A, h, a, b){
+  Index <- ceiling((A$x-a) / h)
+  Index<-replace(Index, Index==0, 1)
+  regressogram_data <- cbind(A, Index)
+  bin<-mean_range(regressogram_data, h, a, b)
+  bin<-cbind(bin$Index, bin$xmean, bin$ymean)
+  colnames(bin) <- c("Index", "xmean", "ymean")
+  regressogram_data<-merge(regressogram_data, bin, by="Index")
+  return(regressogram_data)
+}
+
+A_reg<-regressogram(A, h, a, b)
+```
+
+
+
+– For dataset (B): use [a, b] with a = 2.4 and b = 57.6 as the boundary of the data, and use bin width h = (b − a)/m = 2.76 where m = 20.
+
+```{r}
+a=2.4
+b=57.6
+m=20
+h = (b − a)/m
+colnames(B)[1]<-'x'
+colnames(B)[2]<-'y'
+
+B_bin<-mean_range(B, h, a, b)
+
+B_reg<-regressogram(B, h, a, b)
+```
+# a.2
+
+Local averaging (local kernel estimator with the boxcar kernel) (1 point).
+– For dataset (A): use bandwidth h = 0.321. Compute ˆr(x) on an interval [a, b] with a = 0.29 and b = 3.50.
+
+```{r}
+h = 0.321
+a=0.29
+b=3.5
+m=10
+
+A <- subset(A, x >= 0.29 & x<=3.5 )
+
+local_averaging<-function(A, h){
+  A$ystar<-0
+  n<-length(A$x)
+  for (i in 1:n){
+    w <- rep(0, n)
+    window <- c(A$x[i]-h, A$x[i]+h)
+    w[A$x >= window[1] & A$x <= window[2]] <- 1
+    A$ystar[i] <- sum(A$y * w) / sum(w)
+  }
+  return(A)
+}
+
+A_locav <- local_averaging(A, h)
+```
+
+For dataset (B): use bandwidth h = 2.76. Compute ˆr(x) on an interval [a, b] with a = 2.4 and b = 57.6.
+
+```{r}
+h<-2.76
+a = 2.4
+b = 57.6
+B <- subset(B, x >= 2.4 & x<=57.6 )
+B_locav <- local_averaging(B, h)
+```
+
+# Kernel
+
+For dataset (A): use bandwidth h = 0.321. Compute ˆr(x) on an interval [a, b] with a = 0.29 and b = 3.50.
+
+```{r}
+
+h = 0.321
+a = 0.29
+b = 3.50
+m=10
+kernel_gaussian<-function(A, h){
+  A$ystar<-0
+  n<-length(A$x)
+  for (i in 1:n){
+    w=dnorm(A$x[i], A$x, h )
+    A$ystar[i] <- sum(A$y * w) / sum(w)
+  }
+  return(A)
+}
+
+A_gaussian <- kernel_gaussian(A, h)
+
+# ggplot(A, aes(x, y)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(A_reg, aes(x, ymean)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(A_locav, aes(x, ystar)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(A_gaussian, aes(x, ystar)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+
+ggplot() + geom_point(data=A, aes(x=x, y=y)) + geom_vline(xintercept = c(A_bin$min, a+m*h), linetype = "longdash") +theme_classic() + geom_segment(data = A_bin, aes(x=min, xend=max, y=ymean, yend=ymean), color = "lightblue") + geom_point(data=A_locav, aes(x, ystar), colour="red")  + geom_point(data=A_reg, aes(x, ymean), colour = "blue") + geom_point(data=A_gaussian, aes(x, ystar), colour = "green") + ggtitle("Regressogram (Blue), Local Averaging (Red) and Gaussian Kernel (Green) \n to Estimate True y Values (Black)") + xlab("x Axis at (0.29, 3.50) Interval") + ylab("Predicted and True Y Values")  
+
+
+```
+
+– For dataset (B): use bandwidth h = 2.76. Compute ˆr(x) on an interval [a, b] with a = 2.4 and b = 57.6.
+
+```{r}
+h = 2.76
+a = 2.4
+b = 57.6
+m=20
+B_gaussian <- kernel_gaussian(B, h)
+
+# ggplot(B, aes(x, y)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(B_reg, aes(x, ymean)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(B_locav, aes(x, ystar)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(B_gaussian, aes(x, ystar)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+
+ggplot() + geom_point(data=B, aes(x=x, y=y)) + geom_vline(xintercept = c(B_bin$min, a+m*h), linetype = "longdash") +theme_classic() + geom_segment(data = B_bin, aes(x=min, xend=max, y=ymean, yend=ymean), color = "lightblue") + geom_point(data=B_locav, aes(x, ystar), colour="red")  + geom_point(data=B_reg, aes(x, ymean), colour = "blue") + geom_point(data=B_gaussian, aes(x, ystar), colour="green") + ggtitle("Regressogram (Blue), Local Averaging (Red) and Gaussian Kernel (Green) \n to Estimate True y Values (Black)") + xlab("x Axis at (2.4, 57.6) Interval") + ylab("Predicted and True Y Values")  
+
+```
+
+# b.1.i
+
+```{r}
+x<- as.data.frame((1:n)/n)
+#The function
+r_x <- x
+x<-cbind(x, r_x)
+colnames(x)<-c('x', 'y')
+n<-100
+sd<-1
+x <- subset(x, x >= 0 )
+```
+
+
+
+```{r}
+m = 10
+h = 1/10
+a=0
+b=1
+
+mean_range<-function(x, h, a, b){
+  bin_value <- ceiling((x$x-a) / h)
+  bin_value<-replace(bin_value, bin_value==0, 1)
+  regressogram_data <- cbind(x, bin_value)
+  bin2<-aggregate(regressogram_data$y, list(regressogram_data$bin_value), FUN=mean)
+  bin1<-aggregate(regressogram_data$x, list(regressogram_data$bin_value), FUN=mean)
+  l<-as.data.frame(0:m)
+  l<-a+ l[1]*h
+  bin <-cbind(bin1, bin2$x, as.data.frame(l[1:m,]), as.data.frame(l[2:(m+1),]))
+  colnames(bin) <- c("Index", "xmean", "ymean", "min", "max")
+  return(bin)
+}
+
+x_reg<-regressogram(x, h, a, b)
+
+bin<-mean_range(x, h, 0, 1)
+
+local_averaging<-function(A, h){
+  A$ystar<-0
+  n<-length(A$x)
+  for (i in 1:n){
+    w <- rep(0, n)
+    window <- c(A$x[i]-h, A$x[i]+h)
+    w[A$x >= window[1] & A$x <= window[2]] <- 1
+    A$ystar[i] <- sum(A$y * w) / sum(w)
+  }
+  return(A)
+}
+
+x_locav <- local_averaging(x, h)
+
+ggplot() + geom_point(data= x, aes(x=x, y=y ), colour="red", size=1) + geom_segment(data = bin, aes(x=min, xend=max, y=ymean, yend=ymean), color = "lightpink") + geom_point(data=x_reg, aes(x, ymean), colour = "darkred", size=1)   + geom_vline(xintercept = c(bin$min, a+ m*h), linetype = "longdash") + geom_point(data= x_locav, aes(x=x, y=ystar ), colour="blue", size=1) +theme_classic()  + ggtitle("Regressogram (Dark Red) and Local Averaging (Blue) \n to Estimate True y Values (Red)") + xlab("x Axis at (0, 1] Interval") + ylab("Predicted and True Y Values")  
+```
+
+# b.1.ii
+
+```{r}
+bias1<- mean((x_reg$y-x_reg$ymean)^2) # bias for the regressogram
+bias2<- mean((x_locav$y-x_locav$ystar)^2) # bias for the local averaging
+
+bias1
+bias2
+```
+In the figure above the red dots are the true function x mapped on r(x), red dots are the results of local averaging, and the darkred dots are the results of regressogram method. As we can see the local averaging has smaller bias than regressogram. This can be totally expected because regressogram can easily fail to capture or over-capture a set of observations and it is less fliexible as the bins are rigid and constant. Although, we can see that local averaging underestimates the right side of the true value and overestimates the the left size of the true value (this can be result of a boundary effect). But otherwise it does the estimation pretty accurately. If we look at the analytical equation of bias above, we will see that local averaging points have less bias than the regressogram.
+
+
+# b.2
+
+```{r}
+n=99
+x<- as.data.frame(1:n)/n
+r_x = sin(2*pi*x)
+x<-cbind(x, r_x)
+colnames(x)<-c('x', 'y')
+```
+ 
+
+```{r}
+h=0.1
+x_gaussian <- kernel_gaussian(x, h)
+# ggplot(x, aes(x, y)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+# ggplot(x_gaussian, aes(x, ystar)) + geom_point() + geom_smooth(method = "loess", se = FALSE)
+bias<- mean((x_gaussian$y-x_gaussian$ystar)^2)
+
+var_gaussian<-function(A, h, sd){
+  n<-length(A$x)
+  for (i in 1:n){
+    w=dnorm(A$x[i], A$x, h )
+    A$var[i]<-(sd^2)*(sum(w^2))/((sum(w))^2)
+  }
+  return(A)
+}
+
+var<-var_gaussian(x, h, 1)
+tot_var<- (1/n)*(sum(var$var))
+mse<-bias+tot_var
+bias
+tot_var
+mse
+```
+The value of MSE with analytical method is 0.05806356.
+
+```{r}
+m=100
+sd=1
+error<-rnorm(m, 0 , sd)
+NewData=as.data.frame(sample(x$x, m, replace = TRUE, prob = NULL))
+colnames(NewData)<-c("x")
+NewData$r_x = sin(2*pi*NewData$x)
+NewData$error<-error
+NewData$y<-NewData$r_x+NewData$error # Generating 100 datasets from r_x+error
+
+ker_gauss<-kernel_gaussian(NewData, h)
+loss<- mean((ker_gauss$ystar - ker_gauss$r_x)^2)
+
+var<-var_gaussian(NewData, h, sd)
+tot_var<- (1/n)*(sum(var$var))
+
+mse<-loss+tot_var
+loss
+tot_var
+mse
+
+```
+For sample size m=10000 I got a quite close numbers 
+Loss= 0.02521901
+Var= 0.03296651
+MSE= 0.05818552
+
+# b.3
+
+```{r}
+n=99
+x<- as.data.frame(1:n)/n
+r_x = sin(10*pi* x[1])
+st_d=0.1
+x<-cbind(x, r_x )
+colnames(x)<-c('x', 'y')
+
+```
+
+
+```{r}
+# h=0.001
+# h = 0.05
+# h = 0.2
+ h = 100
+sd=0.1
+df<- kernel_gaussian(x, h)
+var<-var_gaussian(x, h, st_d)
+tot_var<- (1/n)*(sum(var$var))
+df$var_up<-df$ystar + sqrt(tot_var)
+df$var_bottom<- df$ystar - sqrt(tot_var)
+
+error<-rnorm(99, 0 , st_d)
+NewData=as.data.frame(sample(x$x, 99, replace = TRUE, prob = NULL))
+colnames(NewData)<-c("x")
+NewData$r_x = sin(10*pi*NewData$x)
+NewData$error<-error
+NewData$y<-NewData$r_x+NewData$error # Generating 99 datasets from r_x+error
+
+ggplot() +geom_line(data=df, aes(x=x, y=y), colour = "blue") +ylim(-2,2) + geom_line(data=df, aes(x=x, y=var_up), colour = "yellow") + geom_line(data=df, aes(x=x, y=var_bottom), colour = "lightgreen") + geom_line(data=df, aes(x=x, y=ystar), colour='red') + ggtitle("Gaussian Kernel Estimator (Red), Upper SD (Yellow) and Lower SD (Green)\n to Estimate True y Function (Blue)") + xlab("x Values") + ylab("Predicted and True Y Values") +theme_classic() + geom_point(data=NewData, aes(x=x, y=y))
+
+bias<- mean((df$y-df$ystar)^2)
+var<-var_gaussian(df, h, st_d)
+tot_var<- (1/n)*(sum(var$var))
+mse<-bias+tot_var
+# bias
+# tot_var
+# mse
+```
+h=0.001
+- 1.439584e-33
+- 0.01
+- 0.01
+
+h = 0.05
+- 0.2325007
+- 0.0006137021
+- 0.2331144
+
+h = 0.2
+- 0.4870487
+- 0.0001864089
+- 0.4872351
+
+h = 100
+- 0.4999998
+- 0.0001010101
+- 0.5001008
+
+Bias is lowest when h is 0.001 and variance is the lowest when the h is 100. MSE is the lowest when h=0.001. Intuitively( and from the graph) that also makes sense as when the h is larger we are giving higher weights to farther observations. In this particular case, the true r(x) fluctuates a lot so utilizing a large h would yield a poorer result than simply assuming there is less noise. 
+
+# b.4
+
+```{r}
+n=99
+x<- as.data.frame(1:n)/n
+x$r_x = 0.5
+st_d=1
+colnames(x)<-c('x', 'y')
+```
+
+
+```{r}
+# h=0.001
+# h = 0.05
+# h = 0.2
+ h = 100
+df<- kernel_gaussian(x, h)
+var<-var_gaussian(x, h, st_d)
+tot_var<- (1/n)*(sum(var$var))
+df$var_up<-df$ystar + sqrt(tot_var)
+df$var_bottom<- df$ystar - sqrt(tot_var)
+
+error<-rnorm(99, 0, st_d)
+NewData=as.data.frame(sample(x$x, 99, replace = TRUE , prob = NULL))
+colnames(NewData)<-c("x")
+NewData$r_x = 0.5
+NewData$error<-error
+NewData$y<-NewData$r_x+NewData$error # Generating 99 datasets from r_x+error
+
+ggplot() +geom_line(data=df, aes(x=x, y=y), colour = "blue") +ylim(-4,4) + geom_line(data=df, aes(x=x, y=var_up), colour = "yellow") + geom_line(data=df, aes(x=x, y=var_bottom), colour = "lightgreen") + geom_line(data=df, aes(x=x, y=ystar), colour='red') + ggtitle("Gaussian Kernel Estimator (Red), Upper SD (Yellow) and Lower SD (Green)\n to Estimate True y Function (Blue)") + xlab("x Values") + ylab("Predicted and True Y Values") +theme_classic() + geom_point(data=NewData, aes(x=x, y=y))
+
+bias<- mean((df$y-df$ystar)^2)
+var<-var_gaussian(df, h, st_d)
+tot_var<- (1/n)*(sum(var$var))
+mse<-bias+tot_var
+bias
+tot_var
+mse
+```
+
+h=0.001
+[1] 0
+[1] 0.01
+[1] 0.01
+
+h = 0.05
+[1] 0
+[1] 0.0006137021
+[1] 0.0006137021
+
+h = 0.2
+[1] 0
+[1] 0.0001864089
+[1] 0.0001864089
+
+h = 100
+[1] 0
+[1] 0.0001010101
+[1] 0.0001010101
+
+In this case, bias is 0 in all cases and MSE is the lowest in the case of h. This totally makes sense. When observations are truly close to one another and have a similar true value of r(x), we will achieve better results using a large h. Here it would yield the same constant prediction ˆr(xi) for each xi. We can see this from (1.15) equation in the book.
+
+# b.5.i
+
+In this part, we use kernel estimator with Gaussian kernel and choose the bandwidth to achieve the best bias-variance tradeoff on the synthetic datasets (E): r(x) = cos(2πx), σ = 1. We will
+vary the choice of n in {5, 20, 80, 320, 1280}. For every n, you are asked to choose the best bandwidth among {0.02, 0.03, 0.048, 0.063, 0.08, 0.1, 0.12, 0.15, 0.19} that minimizes the analytical MSE. We denote the best choice of h (among the given choices of h) for the datasets with n examples by hn.
+– (2 points) Report the value of hn for all n.
+– (1 point) You are supposed to observe that hn is decreasing as n increases. Use the theory learned in the class to explain why this is the case.
+
+```{r}
+ n= 5
+# n= 20
+# n= 80
+# n= 320
+# n= 1280
+x<- as.data.frame(1:n)/n
+colnames(x)<-c('x')
+x$y<- cos(2*pi* x$x)
+st_d=1
+```
+
+
+```{r}
+# h= 0.02 
+# h=0.03 
+# h=0.048
+# h=0.063 
+# h=0.08 
+# h=0.1 
+# h=0.12 
+# h=0.15 
+ h=0.19
+df<- kernel_gaussian(x, h)
+var<-var_gaussian(x, h, st_d)
+tot_var<- (1/n)*(sum(var$var))
+bias<- mean((df$y-df$ystar)^2)
+mse<-bias+tot_var
+bias
+tot_var
+mse
+# ggplot() + geom_point(data=df, aes(x=x, y=y)) +geom_point(data=df, aes(x=x, y=ystar), colour="blue")
+```
+# n= 1280,  h=0.048,  MSE= 0.006100626
+ h= 0.02 , 0.01139257 
+[1] 3.34981e-05
+[1] 0.01135908
+[1] 0.01139257
+
+ h=0.03 , 0.007859922
+ h=0.048,  0.006100626
+ h=0.063 ,  0.007311147
+ h=0.08 ,  0.01193049
+ h=0.1 ,  0.02295311
+ h=0.12 ,  0.04104918
+ h=0.15 ,  0.08146984
+ h=0.19,  0.1532375
+[1] 0.1517378
+[1] 0.001499757
+[1] 0.1532375
+
+# n= 320, h=0.063 ,  MSE=0.01882514
+ h= 0.02 , 0.04546777
+ h=0.03 ,  0.03091701
+ h=0.048,  0.02089391
+ h=0.063 ,  0.01882514
+ h=0.08 , 0.02121458
+ h=0.1 , 0.03058433
+ h=0.12 , 0.04757821
+ h=0.15 , 0.08689583
+ h=0.19, 0.1577331
+
+# n= 80, h= h=0.08 ,  MSE=0.05834734
+ h= 0.02 , 0.1816433
+ h=0.03 , 0.1230891
+ h=0.048, 0.08004643
+ h=0.063 , 0.06487128
+ h=0.08 ,  0.05834734
+ h=0.1 ,  0.06110838
+ h=0.12 , 0.07369147
+ h=0.15 ,  0.1085847
+ h=0.19,  0.17567
+
+# n=20,  h=0.12 , MSE= 0.1779124
+ h= 0.02 , 0.8553465
+[1] 8.330808e-06
+[1] 0.8553382
+[1] 0.8553465
+ h=0.03 , 0.513969
+ h=0.048,  0.3154583
+ h=0.063 ,  0.2483048
+ h=0.08 , 0.2064361
+ h=0.1 ,  0.182934
+ h=0.12 , 0.1779124
+ h=0.15 ,  0.1949694
+ h=0.19, 0.2465983
+[1] 0.1507128
+[1] 0.09588549
+[1] 0.2465983
+
+# n= 5, h=0.19, MSE=0.5067125
+h= 0.02, 1
+h=0.03, 1
+h=0.048, 0.9994568
+h=0.063 0.9797135
+h=0.08 0.8781685
+h=0.1 0.7118471
+h=0.12 0.5987262
+h=0.15 0.5253824
+h=0.19 0.5067125
+
+# b.5.ii
+
+There is such equation for Gaussian kernel h=1.06σN^(-1/5). But also analytically and from 2.5, 2.6 equations from the book we can derive that it is the case. As much as we increase the sample size the optimal bandwith should decrease in this case. Also note, this is a cos function and there are many ups and down, so the as we have more sample size the MSE would decrease. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
